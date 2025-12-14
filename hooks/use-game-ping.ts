@@ -10,6 +10,102 @@ interface PingStats {
     status: 'connecting' | 'active' | 'error';
 }
 
+/**
+ * CLIENT-SIDE PING using Image loading
+ * This measures latency directly from the user's browser to the target server
+ * Works around CORS by using image loading timing
+ */
+async function clientSidePing(target: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+        const startTime = performance.now();
+        const img = document.createElement('img');
+
+        // Timeout after 5 seconds
+        const timeout = setTimeout(() => {
+            img.src = '';
+            reject(new Error('Timeout'));
+        }, 5000);
+
+        img.onload = () => {
+            clearTimeout(timeout);
+            const endTime = performance.now();
+            resolve(Math.round(endTime - startTime));
+        };
+
+        img.onerror = () => {
+            clearTimeout(timeout);
+            const endTime = performance.now();
+            const latency = Math.round(endTime - startTime);
+
+            // Even on error, we got timing data
+            // If it failed too quickly, it's a real error
+            if (latency < 10) {
+                reject(new Error('Connection failed'));
+            } else {
+                // Server responded (even with error), so we have latency
+                resolve(latency);
+            }
+        };
+
+        // Try to load a tiny resource from the target
+        // Add timestamp to prevent caching
+        img.src = `http://${target}/favicon.ico?t=${Date.now()}`;
+    });
+}
+
+/**
+ * Alternative: Multiple ping samples for accuracy
+ */
+async function measureLatency(target: string, samples: number = 3): Promise<number> {
+    const results: number[] = [];
+
+    for (let i = 0; i < samples; i++) {
+        try {
+            const latency = await clientSidePing(target);
+            results.push(latency);
+        } catch (e) {
+            // Skip failed attempts
+            continue;
+        }
+    }
+
+    if (results.length === 0) {
+        throw new Error('All ping attempts failed');
+    }
+
+    // Return median for accuracy
+    results.sort((a, b) => a - b);
+    return results[Math.floor(results.length / 2)];
+}
+
+// Alternative: WebSocket ping (more accurate for game servers)
+async function websocketPing(target: string, port: number = 80): Promise<number> {
+    return new Promise((resolve, reject) => {
+        const startTime = performance.now();
+        const ws = new WebSocket(`ws://${target}:${port}`);
+
+        const timeout = setTimeout(() => {
+            ws.close();
+            reject(new Error('Timeout'));
+        }, 5000);
+
+        ws.onopen = () => {
+            const endTime = performance.now();
+            clearTimeout(timeout);
+            ws.close();
+            resolve(Math.round(endTime - startTime));
+        };
+
+        ws.onerror = () => {
+            const endTime = performance.now();
+            clearTimeout(timeout);
+            ws.close();
+            // Still return timing even on error
+            resolve(Math.round(endTime - startTime));
+        };
+    });
+}
+
 export function useGamePing(gameTitle: string, intervalMs: number = 5000) {
     const [stats, setStats] = useState<PingStats>({
         ping: 0,
@@ -24,12 +120,12 @@ export function useGamePing(gameTitle: string, intervalMs: number = 5000) {
     const totalPingsRef = useRef(0);
     const failedPingsRef = useRef(0);
 
-    // 1. Get User Location
+    // 1. Get User Location (client-side)
     useEffect(() => {
         getUserLocation().then(country => setUserCountry(country));
     }, []);
 
-    // 2. Ping Loop
+    // 2. Client-Side Ping Loop
     useEffect(() => {
         if (!userCountry) return;
 
@@ -44,17 +140,16 @@ export function useGamePing(gameTitle: string, intervalMs: number = 5000) {
             let success = false;
             let latency = 0;
 
-            // Try IPs until one works
+            // Try each IP until one works
             for (const target of targets) {
                 try {
-                    const res = await fetch(`/api/ping?target=${target}`);
-                    const data = await res.json();
-                    if (typeof data.latency === 'number' && data.latency >= 0) {
-                        latency = data.latency;
-                        success = true;
-                        break;
-                    }
+                    // 🎯 CLIENT-SIDE PING - Measures from user's browser!
+                    // This is the actual user's latency to the game server
+                    latency = await clientSidePing(target);
+                    success = true;
+                    break;
                 } catch (e) {
+                    // Try next IP
                     continue;
                 }
             }
@@ -84,7 +179,7 @@ export function useGamePing(gameTitle: string, intervalMs: number = 5000) {
                     status: 'active'
                 });
             } else {
-                // Failure
+                // All IPs failed
                 failedPingsRef.current += 1;
                 const loss = Math.min(100, Math.floor((failedPingsRef.current / totalPingsRef.current) * 100));
 
@@ -92,7 +187,7 @@ export function useGamePing(gameTitle: string, intervalMs: number = 5000) {
                     ...prev,
                     ping: 0,
                     packetLoss: loss,
-                    status: prev.status === 'connecting' ? 'error' : 'active' // Keep active if we had data before
+                    status: prev.status === 'connecting' ? 'error' : 'active'
                 }));
             }
         };

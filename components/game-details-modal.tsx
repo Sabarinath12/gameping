@@ -68,7 +68,7 @@ export function GameDetailsModal({ game, onClose }: GameDetailsModalProps) {
 
                 setTotalPings(prev => prev + 1);
 
-                // Real Ping Check with Multi-IP Fallback
+                // CLIENT-SIDE PING - Measures from user's browser!
                 try {
                     const targets = getGameIPs(game.title, userCountry);
                     let success = false;
@@ -78,14 +78,40 @@ export function GameDetailsModal({ game, onClose }: GameDetailsModalProps) {
                         // Try each IP until one works
                         for (const target of targets) {
                             try {
-                                const res = await fetch(`/api/ping?target=${target}`);
-                                const data = await res.json();
+                                // 🎯 CLIENT-SIDE PING using Image loading
+                                const startTime = performance.now();
 
-                                if (typeof data.latency === 'number' && data.latency >= 0) {
-                                    latency = data.latency;
-                                    success = true;
-                                    break; // Stop trying if we got a hit
-                                }
+                                await new Promise((resolve, reject) => {
+                                    const img = document.createElement('img');
+                                    const timeout = setTimeout(() => {
+                                        img.src = '';
+                                        reject(new Error('Timeout'));
+                                    }, 5000);
+
+                                    img.onload = () => {
+                                        clearTimeout(timeout);
+                                        resolve(null);
+                                    };
+
+                                    img.onerror = () => {
+                                        clearTimeout(timeout);
+                                        const endTime = performance.now();
+                                        const lat = Math.round(endTime - startTime);
+                                        // Even on error, if we got timing, use it
+                                        if (lat >= 10) {
+                                            resolve(null);
+                                        } else {
+                                            reject(new Error('Failed'));
+                                        }
+                                    };
+
+                                    img.src = `http://${target}/favicon.ico?t=${Date.now()}`;
+                                });
+
+                                const endTime = performance.now();
+                                latency = Math.round(endTime - startTime);
+                                success = true;
+                                break; // Stop trying if we got a hit
                             } catch (innerErr) {
                                 // Continue to next IP
                                 continue;
