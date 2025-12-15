@@ -11,71 +11,57 @@ interface PingStats {
 }
 
 /**
- * CLIENT-SIDE PING using Image loading
- * This measures latency directly from the user's browser to the target server
- * Works around CORS by using image loading timing
+ * HYBRID PING CALCULATION
+ * estimated_ping = user_to_server_RTT + server_to_game_RTT
+ * 
+ * This works around browser CORS restrictions by:
+ * 1. Client measures: User → Your Server (RTT)
+ * 2. Server measures: Your Server → Game Server (RTT)
+ * 3. Combine both for accurate total ping
  */
-async function clientSidePing(target: string): Promise<number> {
-    return new Promise((resolve, reject) => {
-        const startTime = performance.now();
-        const img = document.createElement('img');
 
-        // Timeout after 5 seconds
-        const timeout = setTimeout(() => {
-            img.src = '';
-            reject(new Error('Timeout'));
-        }, 5000);
+async function measureUserToServerRTT(): Promise<number> {
+    const startTime = performance.now();
 
-        img.onload = () => {
-            clearTimeout(timeout);
-            const endTime = performance.now();
-            resolve(Math.round(endTime - startTime));
-        };
+    try {
+        // Ping our own API endpoint (lightweight)
+        await fetch('/api/ping?healthcheck=true', {
+            method: 'HEAD',
+            cache: 'no-store'
+        });
 
-        img.onerror = () => {
-            clearTimeout(timeout);
-            const endTime = performance.now();
-            const latency = Math.round(endTime - startTime);
-
-            // Even on error, we got timing data
-            // If it failed too quickly, it's a real error
-            if (latency < 10) {
-                reject(new Error('Connection failed'));
-            } else {
-                // Server responded (even with error), so we have latency
-                resolve(latency);
-            }
-        };
-
-        // Try to load a tiny resource from the target
-        // Add timestamp to prevent caching
-        img.src = `http://${target}/favicon.ico?t=${Date.now()}`;
-    });
+        const endTime = performance.now();
+        return Math.round(endTime - startTime);
+    } catch (error) {
+        throw new Error('Failed to measure user-to-server RTT');
+    }
 }
 
-/**
- * Alternative: Multiple ping samples for accuracy
- */
-async function measureLatency(target: string, samples: number = 3): Promise<number> {
-    const results: number[] = [];
+async function getServerToGameRTT(target: string): Promise<number> {
+    try {
+        // Server measures its ping to game server
+        const res = await fetch(`/api/ping?target=${target}`);
+        const data = await res.json();
 
-    for (let i = 0; i < samples; i++) {
-        try {
-            const latency = await clientSidePing(target);
-            results.push(latency);
-        } catch (e) {
-            // Skip failed attempts
-            continue;
+        if (typeof data.latency === 'number' && data.latency >= 0) {
+            return data.latency;
         }
-    }
 
-    if (results.length === 0) {
-        throw new Error('All ping attempts failed');
+        throw new Error('Invalid server response');
+    } catch (error) {
+        throw new Error('Failed to get server-to-game RTT');
     }
+}
 
-    // Return median for accuracy
-    results.sort((a, b) => a - b);
-    return results[Math.floor(results.length / 2)];
+async function calculateHybridPing(target: string): Promise<number> {
+    // Measure both RTTs in parallel for speed
+    const [userToServer, serverToGame] = await Promise.all([
+        measureUserToServerRTT(),
+        getServerToGameRTT(target)
+    ]);
+
+    // Total estimated ping = user→server + server→game
+    return userToServer + serverToGame;
 }
 
 // Alternative: WebSocket ping (more accurate for game servers)
@@ -125,7 +111,7 @@ export function useGamePing(gameTitle: string, intervalMs: number = 5000) {
         getUserLocation().then(country => setUserCountry(country));
     }, []);
 
-    // 2. Client-Side Ping Loop
+    // 2. Hybrid Ping Loop
     useEffect(() => {
         if (!userCountry) return;
 
@@ -143,9 +129,9 @@ export function useGamePing(gameTitle: string, intervalMs: number = 5000) {
             // Try each IP until one works
             for (const target of targets) {
                 try {
-                    // 🎯 CLIENT-SIDE PING - Measures from user's browser!
-                    // This is the actual user's latency to the game server
-                    latency = await clientSidePing(target);
+                    // 🎯 HYBRID PING CALCULATION
+                    // estimated_ping = user_to_server_RTT + server_to_game_RTT
+                    latency = await calculateHybridPing(target);
                     success = true;
                     break;
                 } catch (e) {

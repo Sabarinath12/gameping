@@ -30,7 +30,7 @@ export function GameCard({
         if (ping === 0) return { text: "N/A", color: "text-neutral-500 bg-neutral-500/10 border-neutral-500/20" };
         if (ping < 30) return { text: "Excellent", color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" };
         if (ping < 60) return { text: "Good", color: "text-green-400 bg-green-400/10 border-green-400/20" };
-        if (ping < 100) return { text: "Playable", color: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20" };
+        if (ping < 120) return { text: "Playable", color: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20" };
         return { text: "Bad", color: "text-red-400 bg-red-400/10 border-red-400/20" };
     };
 

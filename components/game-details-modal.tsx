@@ -68,7 +68,7 @@ export function GameDetailsModal({ game, onClose }: GameDetailsModalProps) {
 
                 setTotalPings(prev => prev + 1);
 
-                // CLIENT-SIDE PING - Measures from user's browser!
+                // HYBRID PING - estimated_ping = user_to_server_RTT + server_to_game_RTT
                 try {
                     const targets = getGameIPs(game.title, userCountry);
                     let success = false;
@@ -78,40 +78,24 @@ export function GameDetailsModal({ game, onClose }: GameDetailsModalProps) {
                         // Try each IP until one works
                         for (const target of targets) {
                             try {
-                                // 🎯 CLIENT-SIDE PING using Image loading
-                                const startTime = performance.now();
-
-                                await new Promise((resolve, reject) => {
-                                    const img = document.createElement('img');
-                                    const timeout = setTimeout(() => {
-                                        img.src = '';
-                                        reject(new Error('Timeout'));
-                                    }, 5000);
-
-                                    img.onload = () => {
-                                        clearTimeout(timeout);
-                                        resolve(null);
-                                    };
-
-                                    img.onerror = () => {
-                                        clearTimeout(timeout);
-                                        const endTime = performance.now();
-                                        const lat = Math.round(endTime - startTime);
-                                        // Even on error, if we got timing, use it
-                                        if (lat >= 10) {
-                                            resolve(null);
-                                        } else {
-                                            reject(new Error('Failed'));
-                                        }
-                                    };
-
-                                    img.src = `http://${target}/favicon.ico?t=${Date.now()}`;
+                                // Measure user→server RTT
+                                const userToServerStart = performance.now();
+                                await fetch('/api/ping?healthcheck=true', {
+                                    method: 'HEAD',
+                                    cache: 'no-store'
                                 });
+                                const userToServer = Math.round(performance.now() - userToServerStart);
 
-                                const endTime = performance.now();
-                                latency = Math.round(endTime - startTime);
-                                success = true;
-                                break; // Stop trying if we got a hit
+                                // Get server→game RTT
+                                const res = await fetch(`/api/ping?target=${target}`);
+                                const data = await res.json();
+
+                                if (typeof data.latency === 'number' && data.latency >= 0) {
+                                    // Total ping = user→server + server→game
+                                    latency = userToServer + data.latency;
+                                    success = true;
+                                    break; // Stop trying if we got a hit
+                                }
                             } catch (innerErr) {
                                 // Continue to next IP
                                 continue;

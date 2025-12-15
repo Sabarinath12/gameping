@@ -4,6 +4,12 @@ import net from "net";
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const target = searchParams.get("target");
+    const healthcheck = searchParams.get("healthcheck");
+
+    // Healthcheck mode: just return immediately for user-to-server RTT measurement
+    if (healthcheck === "true") {
+        return NextResponse.json({ status: "ok" });
+    }
 
     if (!target) {
         return NextResponse.json({ error: "Target is required" }, { status: 400 });
