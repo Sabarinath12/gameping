@@ -13,7 +13,7 @@ const GAMES = [
   {
     id: 1,
     title: "Valorant",
-    image: "/logos/valorant.png",
+    image: "/logos/valorant.png?v=2",
     ping: 24,
     jitter: 2,
     packetLoss: 0,
@@ -22,7 +22,7 @@ const GAMES = [
   {
     id: 2,
     title: "Counter-Strike 2",
-    image: "/logos/cs2.png",
+    image: "/logos/cs2.png?v=2",
     ping: 32,
     jitter: 4,
     packetLoss: 0,
@@ -31,7 +31,7 @@ const GAMES = [
   {
     id: 3,
     title: "Apex Legends",
-    image: "/logos/apex.png",
+    image: "/logos/apex.png?v=2",
     ping: 45,
     jitter: 6,
     packetLoss: 0.5,
@@ -40,7 +40,7 @@ const GAMES = [
   {
     id: 4,
     title: "League of Legends",
-    image: "/logos/lol.png",
+    image: "/logos/lol.png?v=2",
     ping: 28,
     jitter: 3,
     packetLoss: 0,
@@ -49,7 +49,7 @@ const GAMES = [
   {
     id: 5,
     title: "Dota 2",
-    image: "/logos/dota2.png",
+    image: "/logos/dota2.png?v=2",
     ping: 38,
     jitter: 5,
     packetLoss: 0,
@@ -58,7 +58,7 @@ const GAMES = [
   {
     id: 6,
     title: "Fortnite",
-    image: "/logos/fortnite.png",
+    image: "/logos/fortnite.png?v=2",
     ping: 18,
     jitter: 1,
     packetLoss: 0,
@@ -67,7 +67,7 @@ const GAMES = [
   {
     id: 7,
     title: "Overwatch 2",
-    image: "/logos/overwatch2.png",
+    image: "/logos/overwatch2.png?v=2",
     ping: 42,
     jitter: 8,
     packetLoss: 1.2,
@@ -76,7 +76,7 @@ const GAMES = [
   {
     id: 8,
     title: "Rocket League",
-    image: "/logos/rocketleague.svg",
+    image: "/logos/rocketleague.svg?v=2",
     ping: 22,
     jitter: 2,
     packetLoss: 0,
@@ -89,7 +89,8 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col bg-neutral-950 font-[family-name:var(--font-geist-sans)]">
-      <BeamsBackground className="fixed inset-0 z-0">
+      {/* Disable heavy background animation on mobile for better performance */}
+      <BeamsBackground className="fixed inset-0 z-0 hidden md:block">
         <div className="pointer-events-none absolute inset-0 bg-neutral-950/50" />
       </BeamsBackground>
 

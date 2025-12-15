@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Activity, Wifi, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { GlowCard } from "@/components/ui/spotlight-card";
 
 interface GameCardProps {
     id: number;
@@ -42,12 +41,11 @@ export function GameCard({
             layoutId={`card-${id}`}
             onClick={onClick}
             whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ duration: 0.1 }}
             className="h-full cursor-pointer"
         >
-            <GlowCard
-                customSize={true}
-                className="h-full aspect-square p-4 overflow-hidden relative"
-                glowColor="cyan"
+            <Card className="h-full aspect-square p-4 overflow-hidden relative bg-neutral-900/50 border-neutral-800 hover:border-neutral-700 transition-colors active:border-neutral-600"
             >
                 <div className="flex flex-col h-full z-10 relative">
                     <div className="flex-1 relative w-full min-h-0">
@@ -85,7 +83,7 @@ export function GameCard({
                         />
                     ))}
                 </div>
-            </GlowCard>
+            </Card>
         </motion.div>
     );
 }

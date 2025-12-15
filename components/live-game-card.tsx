@@ -25,17 +25,20 @@ export function LiveGameCard({
     initialServerHealth,
     onClick
 }: LiveGameCardProps) {
-    // Use a staggered interval to prevent all cards pinging at once
-    const [intervalMs, setIntervalMs] = useState(5000);
+    // Use longer interval on mobile to save battery
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    const baseInterval = isMobile ? 10000 : 5000; // 10s on mobile, 5s on desktop
+
+    const [intervalMs, setIntervalMs] = useState(baseInterval);
 
     useEffect(() => {
         // Randomize start time slightly to distribute network load
         const randomDelay = Math.floor(Math.random() * 2000);
         const timer = setTimeout(() => {
-            setIntervalMs(5000);
+            setIntervalMs(baseInterval);
         }, randomDelay);
         return () => clearTimeout(timer);
-    }, []);
+    }, [baseInterval]);
 
     const { ping, jitter, packetLoss, history, status } = useGamePing(title, intervalMs);
 
